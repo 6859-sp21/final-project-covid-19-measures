@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>COVID-19 Government Measures Exploration</title>
+
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://code.jquery.com/ui/1.10.2/themes/smoothness/jquery-ui.css" />
+  <link rel="stylesheet" href="css/styles.css">
+
+  <script src="https://d3js.org/d3.v4.min.js"></script>
+  <script src="https://d3js.org/topojson.v2.min.js"></script>
+  <script src="https://d3js.org/d3-queue.v3.min.js"></script>
+  <script src="https://code.jquery.com/jquery-1.9.1.js"></script>
+  <script src="https://code.jquery.com/ui/1.10.2/jquery-ui.js"></script>
+
+  <style>
+    #container {
+      width: 1000px;
+      margin: auto;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="container">
+    <h1>COVID-19 Government Measures Exploration</h1>
+
+    <p>
+      <label for="amount">Date range:</label>
+      <input type="text" id="amount" style="border: 0; color: #f6931f; font-weight: bold;" size="100" />
+    </p>
+    <div id="slider-range"></div>
+
+    <svg id="map" width="1200" height="800"></svg>
+    <div class="tooltip"></div>
+  </div>
+
+  <script>
+    const margin = { top: 10, right: 10, bottom: 10, left: 10 };
+    const width = 1200 - margin.left - margin.right;
+    const height = 700 - margin.top - margin.bottom;
+    let startDate = new Date('2020.02.24');
+    let endDate = new Date('2021.04.27');
+    let mapVariable = "Cases";
+
+    const projection = d3.geoNaturalEarth1()
+      .center([0, 15])
+      .rotate([-9, 0])
+      .scale([1300 / (2 * Math.PI)])
+      .translate([500, 300]);
+
+    const path = d3.geoPath()
+      .projection(projection);
+
+    const svg = d3.select("#map")
+      .append("g")
+      .attr("width", width)
+      .attr("height", height);
+
+    const tooltip = d3.select("div.tooltip");
+
+    d3.queue()
+      .defer(d3.json, "data/world-topo.json")
+      .defer(d3.csv, "data/world-country-names.csv")
+      .defer(d3.csv, "data/owid-covid-data.csv")
+      .defer(d3.csv, "data/acaps_covid19_government_measures_dataset.csv")
+      .await(ready);
+
+    function ready(error, world, names, covid, measures) {
+      if (error) throw error;
+
+      const allCountries = topojson.feature(world, world.objects.countries).features;
+      countries = allCountries.filter((d) =>
+        names.some((n) => {
+          if (d.id == n.id) {
+            d.ISO = n['alpha-3'];
+            return d.name = n.name;
+          }
+        })
+      );
+
+      svg.selectAll("path")
+        .data(countries)
+        .enter()
+        .append("path")
+        .attr("stroke", "black")
+        .attr("stroke-width", 1)
+        .attr("fill", "white")
+        .attr("d", path)
+        .on("mouseover", function (d, i) {
+          d3.select(this).attr("fill", "grey").attr("stroke-width", 2);
+          return tooltip.style("hidden", false).html(d.name);
+        })
+        .on("mousemove", function (d) {
+          tooltip.classed("hidden", false)
+            .style("top", (d3.event.pageY) + "px")
+            .style("left", (d3.event.pageX + 10) + "px")
+            .html(d.name);
+        })
+        .on("mouseout", function (d, i) {
+          d3.select(this).attr("fill", "white").attr("stroke-width", 1);
+          tooltip.classed("hidden", true);
+        })
+        .on("click", function (d, i) {
+          window.location = "/country.html?iso=" + d.ISO;
+        });
+
+      function updateFill() {
+        const data = {};
+        covid.forEach((d) => {
+          const date = new Date(d.date);
+          if (date.getTime() < startDate.getTime() || date.getTime() > endDate.getTime()) return;
+          if (!data[d.iso_code]) data[d.iso_code] = 0;
+          data[d.iso_code] = data[d.iso_code] + (mapVariable == "Cases" ? parseFloat(d.new_cases_per_million) : parseFloat(d.new_deaths_per_million))
+        });
+        // TODO: update country colors
+      }
+
+      $(function () {
+        $("#slider-range").slider({
+          range: true,
+          min: new Date('2020.02.24').getTime() / 1000,
+          max: new Date('2021.04.27').getTime() / 1000,
+          step: 86400,
+          values: [new Date('2021.04.27').getTime() / 1000, new Date('2021.04.27').getTime() / 1000],
+          slide: function (event, ui) {
+            $("#amount").val((new Date(ui.values[0] * 1000).toDateString()) + " - " + (new Date(ui.values[1] * 1000)).toDateString());
+            startDate = new Date(ui.values[0] * 1000);
+            endDate = new Date(ui.values[1] * 1000);
+          }
+        });
+        $("#amount").val((new Date($("#slider-range").slider("values", 0) * 1000).toDateString()) +
+          " - " + (new Date($("#slider-range").slider("values", 1) * 1000)).toDateString());
+      });
+    };
+
+  </script>
+</body>
+
+</html>
