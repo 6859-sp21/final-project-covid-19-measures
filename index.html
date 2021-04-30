@@ -19,10 +19,6 @@
   <script src="https://code.jquery.com/ui/1.10.2/jquery-ui.js"></script>
 
   <style>
-    #container {
-      width: 1000px;
-      margin: auto;
-    }
   </style>
 </head>
 
@@ -31,8 +27,8 @@
     <h1>COVID-19 Government Measures Exploration</h1>
 
     <p>
-      <label for="amount">Date range:</label>
-      <input type="text" id="amount" style="border: 0; color: #f6931f; font-weight: bold;" size="100" />
+      <label for="dates">Date range:</label>
+      <input type="text" id="dates" style="border: 0; color: #f6931f; font-weight: bold;" size="100" />
     </p>
     <div id="slider-range"></div>
 
@@ -44,6 +40,7 @@
     const margin = { top: 10, right: 10, bottom: 10, left: 10 };
     const width = 1200 - margin.left - margin.right;
     const height = 700 - margin.top - margin.bottom;
+    
     let startDate = new Date('2020.02.24');
     let endDate = new Date('2021.04.27');
     let mapVariable = "Cases";
@@ -118,7 +115,6 @@
           if (!data[d.iso_code]) data[d.iso_code] = 0;
           data[d.iso_code] = data[d.iso_code] + (mapVariable == "Cases" ? parseFloat(d.new_cases_per_million) : parseFloat(d.new_deaths_per_million))
         });
-        // TODO: update country colors
       }
 
       $(function () {
@@ -129,12 +125,13 @@
           step: 86400,
           values: [new Date('2021.04.27').getTime() / 1000, new Date('2021.04.27').getTime() / 1000],
           slide: function (event, ui) {
-            $("#amount").val((new Date(ui.values[0] * 1000).toDateString()) + " - " + (new Date(ui.values[1] * 1000)).toDateString());
+            $("#dates").val((new Date(ui.values[0] * 1000).toDateString()) + " - " + (new Date(ui.values[1] * 1000)).toDateString());
             startDate = new Date(ui.values[0] * 1000);
             endDate = new Date(ui.values[1] * 1000);
+            updateFill();
           }
         });
-        $("#amount").val((new Date($("#slider-range").slider("values", 0) * 1000).toDateString()) +
+        $("#dates").val((new Date($("#slider-range").slider("values", 0) * 1000).toDateString()) +
           " - " + (new Date($("#slider-range").slider("values", 1) * 1000)).toDateString());
       });
     };

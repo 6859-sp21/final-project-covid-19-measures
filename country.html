@@ -18,11 +18,25 @@
   <script src="https://code.jquery.com/ui/1.10.2/jquery-ui.js"></script>
 
   <style>
+    text {
+      font-family: sans-serif;
+    }
+  
+    .bar:hover {
+      fill: pink;
+    }
+  
+    .axis--x path {
+      display: none;
+    }
   </style>
 </head>
 
 <body>
-  <h1 id="heading"></h1>
+  <div id="container">
+    <h1 id="heading"></h1>
+    <svg id="bar-chart" width="100%" height="500px"></svg>
+  </div>
 
   <script>
     const params = new URLSearchParams(document.location.search);
@@ -36,10 +50,65 @@
 
     function ready(error, covid, measures) {
       if (error) throw error;
-      
+      const parseCovidDate = d3.timeParse("%Y-%m-%d");
+      const parseMeasuresDate = d3.timeParse("%m/%d/%y");
+
       covid = covid.filter((d) => d.iso_code == iso);
       measures = measures.filter((d) => d.ISO == iso);
+      measureDates = measures.map((d) => parseMeasuresDate(d.ENTRY_DATE).getTime());
 
+      console.log(covid);
+
+      const svg = d3.select("#bar-chart");
+      const margin = { top: 20, right: 20, bottom: 30, left: 40 };
+      const x = d3.scaleBand().padding(0.1).domain(covid.map(function (d) { return d.date; }));
+      const y = d3.scaleLinear().domain([0, d3.max(covid, function (d) { return parseFloat(d.new_cases_smoothed_per_million); })]);
+
+      var g = svg.append("g")
+        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+      g.append("g")
+        .attr("class", "axis axis--x");
+
+      g.append("g")
+        .attr("class", "axis axis--y");
+
+      var bounds = svg.node().getBoundingClientRect(),
+        width = bounds.width - margin.left - margin.right,
+        height = bounds.height - margin.top - margin.bottom;
+
+      x.rangeRound([0, width]);
+      y.rangeRound([height, 0]);
+
+      g.select(".axis--x")
+        .attr("transform", "translate(0," + height + ")")
+        .call(d3.axisBottom(x));
+
+      g.select(".axis--y")
+        .call(d3.axisLeft(y).ticks(10, "%"));
+
+      var bars = g.selectAll(".bar")
+        .data(covid);
+
+      // ENTER
+      bars
+        .enter().append("rect")
+        .attr("class", "bar")
+        .attr("x", function (d) { return x(d.date); })
+        .attr("fill", function (d) { return measureDates.includes(parseCovidDate(d.date).getTime()) ? 'red' : 'cornflowerblue'; })
+        .attr("y", function (d) { return y(parseFloat(d.new_cases_smoothed_per_million)); })
+        .attr("width", x.bandwidth())
+        .attr("height", function (d) { return height - y(parseFloat(d.new_cases_smoothed_per_million)); });
+
+      // UPDATE
+      bars.attr("x", function (d) { return x(d.date); })
+        .attr("y", function (d) { return y(parseFloat(d.new_cases_smoothed_per_million)); })
+        .attr("width", x.bandwidth())
+        .attr("height", function (d) { return height - y(parseFloat(d.new_cases_smoothed_per_million)); });
+
+      // EXIT
+      bars.exit()
+        .remove();
     }
   </script>
 </body>
