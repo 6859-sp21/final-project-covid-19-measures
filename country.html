@@ -21,11 +21,11 @@
     text {
       font-family: sans-serif;
     }
-  
+
     .bar:hover {
       fill: pink;
     }
-  
+
     .axis--x path {
       display: none;
     }
@@ -36,6 +36,7 @@
   <div id="container">
     <h1 id="heading"></h1>
     <svg id="bar-chart" width="100%" height="500px"></svg>
+    <div id="measure-info"></div>
   </div>
 
   <script>
@@ -48,21 +49,51 @@
       .defer(d3.csv, "data/acaps_covid19_government_measures_dataset.csv")
       .await(ready);
 
-    function ready(error, covid, measures) {
-      if (error) throw error;
+    function preprocessCovid(covid) {
       const parseCovidDate = d3.timeParse("%Y-%m-%d");
+
+      return covid.map((d) => {
+        return {
+          iso: d.iso_code,
+          name: d.location,
+          date: parseCovidDate(d.date),
+          cases: parseFloat(d.new_cases_smoothed_per_million),
+          deaths: parseFloat(d.new_deaths_smoothed_per_million)
+        };
+      });
+    }
+
+    function preprocessMeasures(measures) {
       const parseMeasuresDate = d3.timeParse("%m/%d/%y");
 
-      covid = covid.filter((d) => d.iso_code == iso);
-      measures = measures.filter((d) => d.ISO == iso);
-      measureDates = measures.map((d) => parseMeasuresDate(d.ENTRY_DATE).getTime());
+      return measures.map((d) => {
+        return {
+          iso: d.ISO,
+          name: d.COUNTRY,
+          date: parseMeasuresDate(d.DATE_IMPLEMENTED),
+          source: d.SOURCE,
+          source_type: d.SOURCE_TYPE,
+          link: d.LINK,
+          type: d.LOG_TYPE,
+          category: d.CATEGORY,
+          measure: d.MEASURE,
+          comments: d.COMMENTS
+        };
+      }).filter((m) => m.date);
+    }
 
-      console.log(covid);
+    function ready(error, covid, measures) {
+      if (error) throw error;
+
+      covid = preprocessCovid(covid.filter((d) => d.iso_code == iso));
+      measures = preprocessMeasures(measures.filter((d) => d.ISO == iso));
+
+      let parameter = 'cases';
 
       const svg = d3.select("#bar-chart");
       const margin = { top: 20, right: 20, bottom: 30, left: 40 };
       const x = d3.scaleBand().padding(0.1).domain(covid.map(function (d) { return d.date; }));
-      const y = d3.scaleLinear().domain([0, d3.max(covid, function (d) { return parseFloat(d.new_cases_smoothed_per_million); })]);
+      const y = d3.scaleLinear().domain([0, d3.max(covid, function (d) { return d[parameter] })]);
 
       var g = svg.append("g")
         .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
@@ -95,16 +126,27 @@
         .enter().append("rect")
         .attr("class", "bar")
         .attr("x", function (d) { return x(d.date); })
-        .attr("fill", function (d) { return measureDates.includes(parseCovidDate(d.date).getTime()) ? 'red' : 'cornflowerblue'; })
-        .attr("y", function (d) { return y(parseFloat(d.new_cases_smoothed_per_million)); })
+        .attr("fill", function (d) {
+          const dateMeasures = measures.filter((m) => m.date.getTime() == d.date.getTime());
+          if (dateMeasures.length > 0) {
+            if (dateMeasures[0].type == "Introduction / extension of measures") return 'red';
+            else if (dateMeasures[0].type == "Phase-out measure") return 'green';
+          }
+          return 'cornflowerblue'
+        })
+        .attr("y", function (d) { return y(d[parameter]); })
         .attr("width", x.bandwidth())
-        .attr("height", function (d) { return height - y(parseFloat(d.new_cases_smoothed_per_million)); });
+        .attr("height", function (d) { return height - y(d[parameter]); })
+        .on("click", function (d, i) {
+          const dateMeasures = measures.filter((m) => m.date.getTime() == d.date.getTime());
+          document.getElementById("measure-info").innerText = dateMeasures.map(m => m.measure);
+        });
 
       // UPDATE
       bars.attr("x", function (d) { return x(d.date); })
-        .attr("y", function (d) { return y(parseFloat(d.new_cases_smoothed_per_million)); })
+        .attr("y", function (d) { return y(d[parameter]); })
         .attr("width", x.bandwidth())
-        .attr("height", function (d) { return height - y(parseFloat(d.new_cases_smoothed_per_million)); });
+        .attr("height", function (d) { return height - y(d[parameter]); });
 
       // EXIT
       bars.exit()
