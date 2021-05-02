@@ -27,3 +27,7 @@ h1 {
   opacity: 0.9;
   position: absolute;
 }
+
+label {
+  padding-left: 3px;
+}

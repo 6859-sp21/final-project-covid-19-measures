@@ -18,16 +18,8 @@
   <script src="https://code.jquery.com/ui/1.10.2/jquery-ui.js"></script>
 
   <style>
-    text {
-      font-family: sans-serif;
-    }
-
     .bar:hover {
       fill: pink;
-    }
-
-    .axis--x path {
-      display: none;
     }
   </style>
 </head>
@@ -35,20 +27,27 @@
 <body>
   <div id="container">
     <h1 id="heading"></h1>
+    <div id="filters"></div>
+
     <svg id="bar-chart" width="100%" height="500px"></svg>
+    <div class="tooltip"></div>
+    <p><i id="data-disclaimer"></i></p>
+
     <div id="measure-info"></div>
   </div>
 
   <script>
+    // Retrieve URL parameters
     const params = new URLSearchParams(document.location.search);
     const iso = params.get("iso");
-    document.getElementById("heading").innerText = "COVID-19 Government Measures in " + iso;
 
+    // Load data files
     d3.queue()
       .defer(d3.csv, "data/owid-covid-data.csv")
       .defer(d3.csv, "data/acaps_covid19_government_measures_dataset.csv")
       .await(ready);
 
+    // Functions to preprocess data
     function preprocessCovid(covid) {
       const parseCovidDate = d3.timeParse("%Y-%m-%d");
 
@@ -57,12 +56,11 @@
           iso: d.iso_code,
           name: d.location,
           date: parseCovidDate(d.date),
-          cases: parseFloat(d.new_cases_smoothed_per_million),
-          deaths: parseFloat(d.new_deaths_smoothed_per_million)
+          cases: d.new_cases_smoothed_per_million != "" ? parseFloat(d.new_cases_smoothed_per_million) : 0,
+          deaths: d.new_deaths_smoothed_per_million != "" ? parseFloat(d.new_deaths_smoothed_per_million) : 0
         };
       });
     }
-
     function preprocessMeasures(measures) {
       const parseMeasuresDate = d3.timeParse("%m/%d/%y");
 
@@ -82,76 +80,246 @@
       }).filter((m) => m.date);
     }
 
+    // Functions to create filters
+    function createCategoryFilter(categories) {
+      const checkboxes = {};
+      const heading = document.createElement("h4");
+      heading.appendChild(document.createTextNode("Measure categories"));
+      const list = document.createElement("div");
+      list.appendChild(heading);
+
+      for (const i in categories) {
+        const checkboxDiv = document.createElement("div");
+
+        const checkbox = document.createElement("input");
+        checkbox.setAttribute("type", "checkbox");
+        checkbox.checked = true;
+        checkbox.id = `category${i}`;
+        checkbox.name = `category${i}`;
+        checkboxes[categories[i]] = checkbox;
+        checkboxDiv.appendChild(checkbox);
+
+        const label = document.createElement("label");
+        label.setAttribute("for", `category${i}`);
+        label.appendChild(document.createTextNode(categories[i]));
+        checkboxDiv.appendChild(label);
+
+        list.appendChild(checkboxDiv);
+      }
+
+      document.getElementById("filters").appendChild(list);
+      return checkboxes;
+    }
+    function createStatisticChoice(statistics = ['Cases', 'Deaths']) {
+      const radios = {};
+      const heading = document.createElement("h4");
+      heading.appendChild(document.createTextNode("COVID-19 statistic"));
+      const form = document.createElement("form");
+      form.appendChild(heading);
+
+      for (const i in statistics) {
+        const radio = document.createElement("input");
+        radio.setAttribute("type", "radio");
+        radio.id = statistics[i].toLowerCase();
+        radio.name = "statistic";
+        radio.value = statistics[i].toLowerCase();
+        radios[statistics[i]] = radio;
+        form.appendChild(radio);
+
+        const label = document.createElement("label");
+        label.setAttribute("for", statistics[i].toLowerCase());
+        label.appendChild(document.createTextNode(statistics[i]));
+        form.appendChild(label);
+
+        form.appendChild(document.createElement("br"));
+      }
+
+      radios['Cases'].checked = true;
+      document.getElementById("filters").appendChild(form);
+      return radios;
+    }
+
+    // Main execution function
     function ready(error, covid, measures) {
       if (error) throw error;
+      const tooltip = d3.select("div.tooltip");
 
+      // Configure date-time utilities
+      const cutoffDate = d3.timeParse("%Y-%m-%d")("2020-12-11").getTime();
+      const formatTime = d3.timeFormat("%B %d, %Y");
+
+      // Preprocess data
       covid = preprocessCovid(covid.filter((d) => d.iso_code == iso));
-      measures = preprocessMeasures(measures.filter((d) => d.ISO == iso));
+      measuresAll = preprocessMeasures(measures.filter((m) => m.ISO == iso));
+      if (covid.length == 0 || measuresAll.length == 0) {
+        window.location = "index.html";
+      }
+      document.getElementById("heading").innerText = `COVID-19 Government Measures in ${covid[0].name}`;
+
+      // Set up filters
+      const categories = measuresAll
+        .map((m) => m.category)
+        .filter((value, index, self) => {
+          return self.indexOf(value) === index;
+        });
+      const statistics = ['Cases', 'Deaths'];
+      const categoryCheckboxes = createCategoryFilter(categories);
+      const statisticRadios = createStatisticChoice(statistics);
 
       let parameter = 'cases';
 
+      // Set up bar chart area
       const svg = d3.select("#bar-chart");
       const margin = { top: 20, right: 20, bottom: 30, left: 40 };
-      const x = d3.scaleBand().padding(0.1).domain(covid.map(function (d) { return d.date; }));
-      const y = d3.scaleLinear().domain([0, d3.max(covid, function (d) { return d[parameter] })]);
-
       var g = svg.append("g")
         .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-
-      g.append("g")
-        .attr("class", "axis axis--x");
-
-      g.append("g")
-        .attr("class", "axis axis--y");
-
       var bounds = svg.node().getBoundingClientRect(),
         width = bounds.width - margin.left - margin.right,
         height = bounds.height - margin.top - margin.bottom;
 
-      x.rangeRound([0, width]);
-      y.rangeRound([height, 0]);
+      // Set up axes
+      const xAxis = g.append("g")
+        .attr("class", "axis axis--x")
+        .attr("transform", "translate(0," + height + ")");
+      const yAxis = g.append("g")
+        .attr("class", "axis axis--y");
 
-      g.select(".axis--x")
-        .attr("transform", "translate(0," + height + ")")
-        .call(d3.axisBottom(x));
+      // Set up labels
+      const yLabel = g.append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("y", 6)
+        .attr("dy", "0.71em")
+        .attr("text-anchor", "end");
 
-      g.select(".axis--y")
-        .call(d3.axisLeft(y).ticks(10, "%"));
+      function updateChart() {
+        // Retrieve and execute filters
+        const selectedCategories = categories.filter((c) => categoryCheckboxes[c].checked);
+        measures = measuresAll.filter((m) => selectedCategories.includes(m.category));
+        parameter = statistics.filter((s) => statisticRadios[s].checked)[0].toLowerCase();
 
-      var bars = g.selectAll(".bar")
-        .data(covid);
+        // Update axes
+        const y = d3.scaleLinear().domain([0, d3.max(covid, function (d) { return d[parameter] })]);
+        const x = d3.scaleBand().domain(covid.map(function (d) { return d.date; }));
+        x.rangeRound([0, width]);
+        y.rangeRound([height, 0]);
+        xAxis
+          .call(d3.axisBottom(x)
+            .tickFormat((date, i) => formatTime(date))
+            .tickValues(x.domain().filter((date, i) => i % 70 == 0)));
+        yAxis
+          .call(d3.axisLeft(y).ticks(10));
 
-      // ENTER
-      bars
-        .enter().append("rect")
-        .attr("class", "bar")
-        .attr("x", function (d) { return x(d.date); })
-        .attr("fill", function (d) {
+        // Update labels
+        yLabel
+          .text(parameter == "cases" ? "New cases per million" : "New deaths per million");
+
+        // Update bar chart
+        const bars = g.selectAll(".bar")
+          .data(covid);
+
+        const barFill = (d) => {
           const dateMeasures = measures.filter((m) => m.date.getTime() == d.date.getTime());
+          const introduced = dateMeasures.filter((m) => m.type == "Introduction / extension of measures");
+          const phasedOut = dateMeasures.filter((m) => m.type == "Phase-out measure");
           if (dateMeasures.length > 0) {
-            if (dateMeasures[0].type == "Introduction / extension of measures") return 'red';
-            else if (dateMeasures[0].type == "Phase-out measure") return 'green';
+            if (introduced.length >= phasedOut.length) return 'red';
+            else return 'green';
           }
-          return 'cornflowerblue'
-        })
-        .attr("y", function (d) { return y(d[parameter]); })
-        .attr("width", x.bandwidth())
-        .attr("height", function (d) { return height - y(d[parameter]); })
-        .on("click", function (d, i) {
+          return 'cornflowerblue';
+        };
+        const barMouseover = (d) => {
+          return tooltip.style("hidden", false);
+        };
+        const barMousemove = (d) => {
           const dateMeasures = measures.filter((m) => m.date.getTime() == d.date.getTime());
-          document.getElementById("measure-info").innerText = dateMeasures.map(m => m.measure);
-        });
+          const date = formatTime(d.date);
+          const introduced = dateMeasures.filter((m) => m.type == "Introduction / extension of measures");
+          const phasedOut = dateMeasures.filter((m) => m.type == "Phase-out measure");
+          tooltip.classed("hidden", false)
+            .style("top", (d3.event.pageY) + "px")
+            .style("left", (d3.event.pageX + 10) + "px")
+            .html(`${date}: ${d.date.getTime() < cutoffDate ? `${introduced.length} introduced, ${phasedOut.length} phased out` : "No measures data"}`);
+        }
+        const barMouseOut = (d) => {
+          tooltip.classed("hidden", true);
+        }
+        const barClick = (d) => {
+          if (d.date.getTime() >= cutoffDate) {
+            document.getElementById("measure-info").innerHTML = "";
+            return;
+          };
 
-      // UPDATE
-      bars.attr("x", function (d) { return x(d.date); })
-        .attr("y", function (d) { return y(d[parameter]); })
-        .attr("width", x.bandwidth())
-        .attr("height", function (d) { return height - y(d[parameter]); });
+          const dateMeasures = measures.filter((m) => m.date.getTime() == d.date.getTime());
+          const introduced = dateMeasures.filter((m) => m.type == "Introduction / extension of measures");
+          const phasedOut = dateMeasures.filter((m) => m.type == "Phase-out measure");
 
-      // EXIT
-      bars.exit()
-        .remove();
+          const infoDiv = document.createElement("div");
+          const paragraph = document.createElement("p");
+          paragraph.appendChild(document.createTextNode(`On ${d3.timeFormat("%A, %B %-d, %Y")(d.date)}, ${d.name} introduced ${introduced.length} ${introduced.length == 1 ? 'measure' : 'measures'} and phased out ${phasedOut.length} ${phasedOut.length == 1 ? 'measure' : 'measures'}.`));
+          infoDiv.appendChild(paragraph);
+
+          function getList(measures) {
+            const list = document.createElement("ul");
+            for (const i in measures) {
+              const a = document.createElement("a");
+              const linkText = document.createTextNode(`${measures[i].measure} (${measures[i].category})`);
+              a.appendChild(linkText);
+              a.href = measures[i].link;
+              a.target = "_blank";
+              const text = document.createTextNode(`: ${measures[i].comments}`);
+              const listElement = document.createElement("li");
+              listElement.appendChild(a);
+              listElement.appendChild(text);
+              list.appendChild(listElement);
+            }
+            return list;
+          }
+          if (introduced.length > 0) {
+            infoDiv.append(document.createTextNode(`The following ${introduced.length == 1 ? 'measure was' : 'measures were'} introduced:`));
+            infoDiv.append(getList(introduced));
+          }
+          if (phasedOut.length > 0) {
+            infoDiv.append(document.createTextNode(`The following ${phasedOut.length == 1 ? 'measure was' : 'measures were'} phased out:`));
+            infoDiv.append(getList(phasedOut));
+          }
+
+          document.getElementById("measure-info").innerHTML = "";
+          document.getElementById("measure-info").append(infoDiv);
+        }
+
+        bars
+          .enter().append("rect")
+          .attr("class", "bar")
+          .attr("x", function (d) { return x(d.date); })
+          .attr("fill", barFill)
+          .attr("y", function (d) { return y(d[parameter]); })
+          .attr("width", x.bandwidth())
+          .attr("height", function (d) { return height - y(d[parameter]); })
+          .on("mouseover", barMouseover)
+          .on("mousemove", barMousemove)
+          .on("mouseout", barMouseOut)
+          .on("click", barClick);
+
+        bars.attr("x", function (d) { return x(d.date); })
+          .attr("fill", barFill)
+          .attr("y", function (d) { return y(d[parameter]); })
+          .attr("width", x.bandwidth())
+          .attr("height", function (d) { return height - y(d[parameter]); })
+          .on("mouseover", barMouseover)
+          .on("mousemove", barMousemove)
+          .on("mouseout", barMouseOut)
+          .on("click", barClick);
+
+        bars.exit()
+          .remove();
+      }
+
+      updateChart();
+      document.getElementById("data-disclaimer").innerText = "Note: data on COVID-19 government measures is available up to December 10, 2020.";
+      categories.forEach((c) => categoryCheckboxes[c].addEventListener('change', updateChart));
+      statistics.forEach((s) => statisticRadios[s].addEventListener('change', updateChart));
     }
+
   </script>
 </body>
 
