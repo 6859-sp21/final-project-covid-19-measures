@@ -192,6 +192,8 @@
         .attr("text-anchor", "end");
 
       function updateChart() {
+        document.getElementById("measure-info").innerHTML = "";
+        
         // Retrieve and execute filters
         const selectedCategories = categories.filter((c) => categoryCheckboxes[c].checked);
         measures = measuresAll.filter((m) => selectedCategories.includes(m.category));
