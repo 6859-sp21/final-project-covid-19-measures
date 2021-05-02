@@ -18,7 +18,14 @@
   <script src="https://code.jquery.com/jquery-1.9.1.js"></script>
   <script src="https://code.jquery.com/ui/1.10.2/jquery-ui.js"></script>
 
+  <script src="https://d3js.org/d3-color.v2.min.js"></script>
+  <script src="https://d3js.org/d3-interpolate.v2.min.js"></script>
+  <script src="https://d3js.org/d3-scale-chromatic.v2.min.js"></script>
+
   <style>
+    #dates {
+      background-color: white;
+    }
   </style>
 </head>
 
@@ -28,7 +35,7 @@
 
     <p>
       <label for="dates">Date range:</label>
-      <input type="text" id="dates" style="border: 0; color: #f6931f; font-weight: bold;" size="100" />
+      <input type="text" id="dates" style="border: 0; color: #f6931f; font-weight: bold;" size="100" disabled />
     </p>
     <div id="slider-range"></div>
 
@@ -37,30 +44,7 @@
   </div>
 
   <script>
-    const margin = { top: 10, right: 10, bottom: 10, left: 10 };
-    const width = 1200 - margin.left - margin.right;
-    const height = 700 - margin.top - margin.bottom;
-    
-    let startDate = new Date('2020.02.24');
-    let endDate = new Date('2021.04.27');
-    let mapVariable = "Cases";
-
-    const projection = d3.geoNaturalEarth1()
-      .center([0, 15])
-      .rotate([-9, 0])
-      .scale([1300 / (2 * Math.PI)])
-      .translate([500, 300]);
-
-    const path = d3.geoPath()
-      .projection(projection);
-
-    const svg = d3.select("#map")
-      .append("g")
-      .attr("width", width)
-      .attr("height", height);
-
-    const tooltip = d3.select("div.tooltip");
-
+    // Load data files
     d3.queue()
       .defer(d3.json, "data/world-topo.json")
       .defer(d3.csv, "data/world-country-names.csv")
@@ -68,9 +52,46 @@
       .defer(d3.csv, "data/acaps_covid19_government_measures_dataset.csv")
       .await(ready);
 
+    // Functions to preprocess data
+    function preprocessCovid(covid) {
+      const parseCovidDate = d3.timeParse("%Y-%m-%d");
+
+      return covid.map((d) => {
+        return {
+          iso: d.iso_code,
+          name: d.location,
+          date: parseCovidDate(d.date),
+          cases: d.new_cases_smoothed_per_million != "" ? parseFloat(d.new_cases_smoothed_per_million) : 0,
+          deaths: d.new_deaths_smoothed_per_million != "" ? parseFloat(d.new_deaths_smoothed_per_million) : 0
+        };
+      });
+    }
+    function preprocessMeasures(measures) {
+      const parseMeasuresDate = d3.timeParse("%m/%d/%y");
+
+      return measures.map((d) => {
+        return {
+          iso: d.ISO,
+          name: d.COUNTRY,
+          date: parseMeasuresDate(d.DATE_IMPLEMENTED),
+          source: d.SOURCE,
+          source_type: d.SOURCE_TYPE,
+          link: d.LINK,
+          type: d.LOG_TYPE,
+          category: d.CATEGORY,
+          measure: d.MEASURE,
+          comments: d.COMMENTS
+        };
+      }).filter((m) => m.date);
+    }
+
     function ready(error, world, names, covid, measures) {
       if (error) throw error;
+      const tooltip = d3.select("div.tooltip");
 
+      // Preprocess data
+      covid = preprocessCovid(covid);
+      measuresAll = preprocessMeasures(measures);
       const allCountries = topojson.feature(world, world.objects.countries).features;
       countries = allCountries.filter((d) =>
         names.some((n) => {
@@ -81,42 +102,93 @@
         })
       );
 
-      svg.selectAll("path")
-        .data(countries)
-        .enter()
-        .append("path")
-        .attr("stroke", "black")
-        .attr("stroke-width", 1)
-        .attr("fill", "white")
-        .attr("d", path)
-        .on("mouseover", function (d, i) {
-          d3.select(this).attr("fill", "grey").attr("stroke-width", 2);
-          return tooltip.style("hidden", false).html(d.name);
-        })
-        .on("mousemove", function (d) {
-          tooltip.classed("hidden", false)
-            .style("top", (d3.event.pageY) + "px")
-            .style("left", (d3.event.pageX + 10) + "px")
-            .html(d.name);
-        })
-        .on("mouseout", function (d, i) {
-          d3.select(this).attr("fill", "white").attr("stroke-width", 1);
-          tooltip.classed("hidden", true);
-        })
-        .on("click", function (d, i) {
-          window.location = "/country.html?iso=" + d.ISO;
-        });
+      // Set up parameters
+      let startDate = new Date('2020.02.24');
+      let endDate = new Date('2021.04.27');
+      let mapVariable = "cases";
 
-      function updateFill() {
+      // Set up map area
+      const margin = { top: 10, right: 10, bottom: 10, left: 10 };
+      const width = 1200 - margin.left - margin.right;
+      const height = 700 - margin.top - margin.bottom;
+      const projection = d3.geoNaturalEarth1()
+        .center([0, 15])
+        .rotate([-9, 0])
+        .scale([1300 / (2 * Math.PI)])
+        .translate([500, 300]);
+      const path = d3.geoPath()
+        .projection(projection);
+      const g = d3.select("#map")
+        .append("g")
+        .attr("width", width)
+        .attr("height", height);
+
+      function updateMap() {
+        // Retrieve and execute filters
         const data = {};
         covid.forEach((d) => {
           const date = new Date(d.date);
           if (date.getTime() < startDate.getTime() || date.getTime() > endDate.getTime()) return;
-          if (!data[d.iso_code]) data[d.iso_code] = 0;
-          data[d.iso_code] = data[d.iso_code] + (mapVariable == "Cases" ? parseFloat(d.new_cases_per_million) : parseFloat(d.new_deaths_per_million))
+          if (!data[d.iso]) data[d.iso] = 0;
+          data[d.iso] = data[d.iso] + d[mapVariable];
         });
-      }
 
+        const colorScale = d3.scaleLinear().domain([0, d3.max(Object.keys(data).map((k) => data[k]))]).range([0, 1]);
+
+        // Update map
+        const map = g.selectAll("path")
+          .data(countries);
+
+        map
+          .enter()
+          .append("path")
+          .attr("stroke", "black")
+          .attr("stroke-width", 1)
+          .attr("fill", function (d) { return d3.interpolateBlues(colorScale(data[d.ISO])); })
+          .attr("d", path)
+          .on("mouseover", function (d, i) {
+            return tooltip.style("hidden", false).html(d.name);
+          })
+          .on("mousemove", function (d) {
+            tooltip.classed("hidden", false)
+              .style("top", (d3.event.pageY) + "px")
+              .style("left", (d3.event.pageX + 10) + "px")
+              .html(d.name);
+          })
+          .on("mouseout", function (d, i) {
+            tooltip.classed("hidden", true);
+          })
+          .on("click", function (d, i) {
+            window.location = "/country.html?iso=" + d.ISO;
+          });
+
+        map
+          .attr("stroke", "black")
+          .attr("stroke-width", 1)
+          .attr("fill", function (d) { return d3.interpolateBlues(colorScale(data[d.ISO])); })
+          .attr("d", path)
+          .on("mouseover", function (d, i) {
+            return tooltip.style("hidden", false).html(d.name);
+          })
+          .on("mousemove", function (d) {
+            tooltip.classed("hidden", false)
+              .style("top", (d3.event.pageY) + "px")
+              .style("left", (d3.event.pageX + 10) + "px")
+              .html(d.name);
+          })
+          .on("mouseout", function (d, i) {
+            tooltip.classed("hidden", true);
+          })
+          .on("click", function (d, i) {
+            window.location = "/country.html?iso=" + d.ISO;
+          });
+
+        map.exit()
+          .remove();
+      }
+      updateMap();
+
+      // Set up dates slider
       $(function () {
         $("#slider-range").slider({
           range: true,
@@ -128,7 +200,7 @@
             $("#dates").val((new Date(ui.values[0] * 1000).toDateString()) + " - " + (new Date(ui.values[1] * 1000)).toDateString());
             startDate = new Date(ui.values[0] * 1000);
             endDate = new Date(ui.values[1] * 1000);
-            updateFill();
+            updateMap();
           }
         });
         $("#dates").val((new Date($("#slider-range").slider("values", 0) * 1000).toDateString()) +
