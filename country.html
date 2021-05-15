@@ -16,19 +16,35 @@
   <script src="https://d3js.org/d3-queue.v3.min.js"></script>
   <script src="https://code.jquery.com/jquery-1.9.1.js"></script>
   <script src="https://code.jquery.com/ui/1.10.2/jquery-ui.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-legend/2.25.6/d3-legend.min.js"></script>
 
   <style>
     .bar:hover {
       fill: pink;
     }
+
+    #back-link {
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    #back-link:hover {
+      text-decoration: none;
+    }
+
+    h1 {
+      padding-top: 10px;
+    }
   </style>
 </head>
 
 <body>
-  <div id="container">
+  <div id="container" style="padding-top:10px">
+    <p id="loading">Loading...</p>
+    <a href="index.html" id="back-link"></a>
     <h1 id="heading"></h1>
     <div id="filters"></div>
-
+    <svg id="legend"></svg>
     <svg id="bar-chart" width="100%" height="500px"></svg>
     <div class="tooltip"></div>
     <p><i id="data-disclaimer"></i></p>
@@ -43,7 +59,7 @@
 
     // Load data files
     d3.queue()
-      .defer(d3.csv, "data/owid-covid-data.csv")
+      .defer(d3.csv, "https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/owid-covid-data.csv")
       .defer(d3.csv, "data/acaps_covid19_government_measures_dataset.csv")
       .await(ready);
 
@@ -57,7 +73,8 @@
           name: d.location,
           date: parseCovidDate(d.date),
           cases: d.new_cases_smoothed_per_million != "" ? parseFloat(d.new_cases_smoothed_per_million) : 0,
-          deaths: d.new_deaths_smoothed_per_million != "" ? parseFloat(d.new_deaths_smoothed_per_million) : 0
+          deaths: d.new_deaths_smoothed_per_million != "" ? parseFloat(d.new_deaths_smoothed_per_million) : 0,
+          hospitalizations: d.hosp_patients_per_million != "" ? parseFloat(d.hosp_patients_per_million) : 0
         };
       });
     }
@@ -110,7 +127,7 @@
       document.getElementById("filters").appendChild(list);
       return checkboxes;
     }
-    function createStatisticChoice(statistics = ['Cases', 'Deaths']) {
+    function createStatisticChoice(statistics = ['Cases', 'Deaths', 'Hospitalizations']) {
       const radios = {};
       const heading = document.createElement("h4");
       heading.appendChild(document.createTextNode("COVID-19 statistic"));
@@ -145,12 +162,16 @@
       const tooltip = d3.select("div.tooltip");
 
       // Configure date-time utilities
-      const cutoffDate = d3.timeParse("%Y-%m-%d")("2020-12-11").getTime();
+      // const cutoffDate = d3.timeParse("%Y-%m-%d")("2020-12-11").getTime();
       const formatTime = d3.timeFormat("%B %d, %Y");
 
       // Preprocess data
       covid = preprocessCovid(covid.filter((d) => d.iso_code == iso));
+      const firstDateCovid = d3.min(covid.map((d) => d.date));
+      const lastDateCovid = d3.max(covid.map((d) => d.date));
       measuresAll = preprocessMeasures(measures.filter((m) => m.ISO == iso));
+      const firstDateMeasures = d3.min(measuresAll.map((d) => d.date));
+      const lastDateMeasures = d3.max(measuresAll.map((d) => d.date));
       if (covid.length == 0 || measuresAll.length == 0) {
         window.location = "index.html";
       }
@@ -162,7 +183,8 @@
         .filter((value, index, self) => {
           return self.indexOf(value) === index;
         });
-      const statistics = ['Cases', 'Deaths'];
+      let statistics = ['Cases', 'Deaths', 'Hospitalizations'];
+      statistics = statistics.filter((s) => covid.filter((d) => d[s.toLowerCase()] > 0).length > 10);
       const categoryCheckboxes = createCategoryFilter(categories);
       const statisticRadios = createStatisticChoice(statistics);
 
@@ -170,11 +192,11 @@
 
       // Set up bar chart area
       const svg = d3.select("#bar-chart");
-      const margin = { top: 20, right: 20, bottom: 30, left: 40 };
+      const margin = { top: 10, right: 20, bottom: 30, left: 40 };
       var g = svg.append("g")
-        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+        .attr("transform", "translate(" + 40 + "," + margin.top + ")");
       var bounds = svg.node().getBoundingClientRect(),
-        width = bounds.width - margin.left - margin.right,
+        width = bounds.width - 40,
         height = bounds.height - margin.top - margin.bottom;
 
       // Set up axes
@@ -191,9 +213,27 @@
         .attr("dy", "0.71em")
         .attr("text-anchor", "end");
 
+      // Legend
+      const ordinal = d3.scaleOrdinal()
+        .domain(["No measures", "More measures introduced", "More measures phased out"])
+        .range(["lightgrey", "tomato", "cornflowerblue"]);
+
+      const svgLegend = d3.select("#legend").attr("height", 100);
+
+      svgLegend.append("g")
+        .attr("class", "legendOrdinal")
+        .attr("transform", "translate(20,20)");
+
+      const legendOrdinal = d3.legendColor()
+        .shapePadding(10)
+        .scale(ordinal);
+
+      svgLegend.select(".legendOrdinal")
+        .call(legendOrdinal);
+
       function updateChart() {
         document.getElementById("measure-info").innerHTML = "";
-        
+
         // Retrieve and execute filters
         const selectedCategories = categories.filter((c) => categoryCheckboxes[c].checked);
         measures = measuresAll.filter((m) => selectedCategories.includes(m.category));
@@ -224,10 +264,10 @@
           const introduced = dateMeasures.filter((m) => m.type == "Introduction / extension of measures");
           const phasedOut = dateMeasures.filter((m) => m.type == "Phase-out measure");
           if (dateMeasures.length > 0) {
-            if (introduced.length >= phasedOut.length) return 'red';
-            else return 'green';
+            if (introduced.length >= phasedOut.length) return 'tomato';
+            else return 'cornflowerblue';
           }
-          return 'cornflowerblue';
+          return 'lightgrey';
         };
         const barMouseover = (d) => {
           return tooltip.style("hidden", false);
@@ -240,13 +280,13 @@
           tooltip.classed("hidden", false)
             .style("top", (d3.event.pageY) + "px")
             .style("left", (d3.event.pageX + 10) + "px")
-            .html(`${date}: ${d.date.getTime() < cutoffDate ? `${introduced.length} introduced, ${phasedOut.length} phased out` : "No measures data"}`);
+            .html(`${date}: ${d.date.getTime() <= lastDateMeasures.getTime() & d.date.getTime() >= firstDateMeasures.getTime() ? `${introduced.length} introduced, ${phasedOut.length} phased out` : "No measures data"}`);
         }
         const barMouseOut = (d) => {
           tooltip.classed("hidden", true);
         }
         const barClick = (d) => {
-          if (d.date.getTime() >= cutoffDate) {
+          if (d.date.getTime() > lastDateMeasures.getTime() | d.date.getTime() < firstDateMeasures.getTime()) {
             document.getElementById("measure-info").innerHTML = "";
             return;
           };
@@ -294,32 +334,29 @@
           .attr("class", "bar")
           .attr("x", function (d) { return x(d.date); })
           .attr("fill", barFill)
-          .attr("y", function (d) { return y(d[parameter]); })
+          .attr("y", function (d) { return y(0); })
           .attr("width", x.bandwidth())
-          .attr("height", function (d) { return height - y(d[parameter]); })
+          .attr("height", function (d) { return height - y(0); })
           .on("mouseover", barMouseover)
           .on("mousemove", barMousemove)
           .on("mouseout", barMouseOut)
           .on("click", barClick);
 
-        bars.attr("x", function (d) { return x(d.date); })
-          .attr("fill", barFill)
+        svg.selectAll("rect")
+          .transition()
+          .duration(60)
           .attr("y", function (d) { return y(d[parameter]); })
-          .attr("width", x.bandwidth())
           .attr("height", function (d) { return height - y(d[parameter]); })
-          .on("mouseover", barMouseover)
-          .on("mousemove", barMousemove)
-          .on("mouseout", barMouseOut)
-          .on("click", barClick);
-
-        bars.exit()
-          .remove();
+          .delay(function (d, i) { return (i) });
       }
 
       updateChart();
-      document.getElementById("data-disclaimer").innerText = "Note: data on COVID-19 government measures is available up to December 10, 2020.";
+      document.getElementById("back-link").innerText = "← Return to Map";
+      document.getElementById("data-disclaimer").innerText = `Note: data on COVID-19 government measures is available up to ${d3.timeFormat("%B %-d, %Y")(lastDateMeasures)}.`;
       categories.forEach((c) => categoryCheckboxes[c].addEventListener('change', updateChart));
       statistics.forEach((s) => statisticRadios[s].addEventListener('change', updateChart));
+
+      document.getElementById("loading").style.display = "none";
     }
 
   </script>
