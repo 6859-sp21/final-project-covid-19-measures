@@ -10,6 +10,7 @@
 
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
   <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.12.1/css/bootstrap-select.css" />
 
   <script src="https://d3js.org/d3.v4.min.js"></script>
   <script src="https://d3js.org/topojson.v2.min.js"></script>
@@ -17,6 +18,7 @@
   <script src="https://code.jquery.com/jquery-1.9.1.js"></script>
   <script src="https://code.jquery.com/ui/1.10.2/jquery-ui.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-legend/2.25.6/d3-legend.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.12.1/js/bootstrap-select.js"></script>
 
   <style>
     .bar:hover {
@@ -35,6 +37,12 @@
     h1 {
       padding-top: 10px;
     }
+
+    #chartHeading {
+      text-align: center;
+      clear: both;
+      padding-top: 10px;
+    }
   </style>
 </head>
 
@@ -43,7 +51,11 @@
     <p id="loading">Loading...</p>
     <a href="index.html" id="back-link"></a>
     <h1 id="heading"></h1>
+    <p id="intro"></p>
+    <!-- <select name="country" id="country" data-live-search="true" data-live-search-style="contains" class="selectpicker"></select> -->
+    <br/>
     <div id="filters"></div>
+    <h3 id="chartHeading"></h3>
     <svg id="legend"></svg>
     <svg id="bar-chart" width="100%" height="500px"></svg>
     <div class="tooltip"></div>
@@ -56,6 +68,18 @@
     // Retrieve URL parameters
     const params = new URLSearchParams(document.location.search);
     const iso = params.get("iso");
+
+    // function createDropdown(covid) {
+    //   const select = document.getElementById("country");
+    //   const countries = {};
+    //   covid.filter((d) => !d.iso.includes("OWID_")).forEach((d) => countries[d.iso] = d.name);
+    //   Object.keys(countries).forEach((iso) => {
+    //     const option = document.createElement("option");
+    //     option.text = countries[iso];
+    //     option.value = iso;
+    //     select.add(option);
+    //   });
+    // }
 
     // Load data files
     d3.queue()
@@ -103,6 +127,8 @@
       const heading = document.createElement("h4");
       heading.appendChild(document.createTextNode("Measure categories"));
       const list = document.createElement("div");
+      list.style.float = "left";
+      list.style.display = "inline-block";
       list.appendChild(heading);
 
       for (const i in categories) {
@@ -132,6 +158,9 @@
       const heading = document.createElement("h4");
       heading.appendChild(document.createTextNode("COVID-19 statistic"));
       const form = document.createElement("form");
+      form.style.float = "left";
+      form.style.display = "inline-block";
+      heading.style['padding-right'] = "50px";
       form.appendChild(heading);
 
       for (const i in statistics) {
@@ -162,11 +191,12 @@
       const tooltip = d3.select("div.tooltip");
 
       // Configure date-time utilities
-      // const cutoffDate = d3.timeParse("%Y-%m-%d")("2020-12-11").getTime();
       const formatTime = d3.timeFormat("%B %d, %Y");
 
       // Preprocess data
-      covid = preprocessCovid(covid.filter((d) => d.iso_code == iso));
+      const covidAll = preprocessCovid(covid);
+      // createDropdown(covidAll);
+      covid = covidAll.filter((d) => d.iso == iso)
       const firstDateCovid = d3.min(covid.map((d) => d.date));
       const lastDateCovid = d3.max(covid.map((d) => d.date));
       measuresAll = preprocessMeasures(measures.filter((m) => m.ISO == iso));
@@ -185,8 +215,8 @@
         });
       let statistics = ['Cases', 'Deaths', 'Hospitalizations'];
       statistics = statistics.filter((s) => covid.filter((d) => d[s.toLowerCase()] > 0).length > 10);
-      const categoryCheckboxes = createCategoryFilter(categories);
       const statisticRadios = createStatisticChoice(statistics);
+      const categoryCheckboxes = createCategoryFilter(categories);
 
       let parameter = 'cases';
 
@@ -231,7 +261,7 @@
       svgLegend.select(".legendOrdinal")
         .call(legendOrdinal);
 
-      function updateChart() {
+      function updateChart(animate = true) {
         document.getElementById("measure-info").innerHTML = "";
 
         // Retrieve and execute filters
@@ -327,6 +357,8 @@
 
           document.getElementById("measure-info").innerHTML = "";
           document.getElementById("measure-info").append(infoDiv);
+
+          document.getElementById("measure-info").scrollIntoView({behavior: "smooth"});
         }
 
         bars
@@ -342,19 +374,36 @@
           .on("mouseout", barMouseOut)
           .on("click", barClick);
 
-        svg.selectAll("rect")
-          .transition()
-          .duration(60)
-          .attr("y", function (d) { return y(d[parameter]); })
-          .attr("height", function (d) { return height - y(d[parameter]); })
-          .delay(function (d, i) { return (i) });
+
+        if (animate) {
+          svg.selectAll("rect")
+            .transition()
+            .duration(60)
+            .attr("y", function (d) { return y(d[parameter]); })
+            .attr("height", function (d) { return height - y(d[parameter]); })
+            .delay(function (d, i) { return (i) });
+        }
+        else {
+          bars.attr("x", function (d) { return x(d.date); })
+            .attr("fill", barFill)
+            .attr("y", function (d) { return y(d[parameter]); })
+            .attr("width", x.bandwidth())
+            .attr("height", function (d) { return height - y(d[parameter]); })
+            .on("mouseover", barMouseover)
+            .on("mousemove", barMousemove)
+            .on("mouseout", barMouseOut)
+            .on("click", barClick);
+        }
       }
 
       updateChart();
       document.getElementById("back-link").innerText = "← Return to Map";
       document.getElementById("data-disclaimer").innerText = `Note: data on COVID-19 government measures is available up to ${d3.timeFormat("%B %-d, %Y")(lastDateMeasures)}.`;
-      categories.forEach((c) => categoryCheckboxes[c].addEventListener('change', updateChart));
+      categories.forEach((c) => categoryCheckboxes[c].addEventListener('change', () => updateChart(false)));
       statistics.forEach((s) => statisticRadios[s].addEventListener('change', updateChart));
+
+      document.getElementById("chartHeading").innerText = "COVID-19 Measures Over Time";
+      document.getElementById("intro").innerText = "This page shows more country-specific stats. You can choose the COVID-19 related statistic to plot on the bar chart below, as well as the categories of measures overlayed. Click an individual bar to see more detailed information about the measures implemented and/or phased out.";
 
       document.getElementById("loading").style.display = "none";
     }
