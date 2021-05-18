@@ -62,6 +62,7 @@
     <p><i id="data-disclaimer"></i></p>
 
     <div id="measure-info"></div>
+    <p id="sources"></p>
   </div>
 
   <script>
@@ -224,9 +225,9 @@
       const svg = d3.select("#bar-chart");
       const margin = { top: 10, right: 20, bottom: 30, left: 40 };
       var g = svg.append("g")
-        .attr("transform", "translate(" + 40 + "," + margin.top + ")");
+        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
       var bounds = svg.node().getBoundingClientRect(),
-        width = bounds.width - 40,
+        width = bounds.width - margin.left - margin.right,
         height = bounds.height - margin.top - margin.bottom;
 
       // Set up axes
@@ -404,6 +405,7 @@
 
       document.getElementById("chartHeading").innerText = "COVID-19 Measures Over Time";
       document.getElementById("intro").innerText = "This page shows more country-specific stats. You can choose the COVID-19 related statistic to plot on the bar chart below, as well as the categories of measures overlayed. Click an individual bar to see more detailed information about the measures implemented and/or phased out.";
+      document.getElementById("sources").innerHTML = "Sources: <a href='https://www.acaps.org/covid-19-government-measures-dataset' target='_blank'>ACAPS COVID-19 Government Measures Dataset</a>, <a href='https://github.com/owid/covid-19-data/tree/master/public/data' target='_blank'>OWID COVID-19 Dataset</a>";
 
       document.getElementById("loading").style.display = "none";
     }

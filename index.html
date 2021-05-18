@@ -28,7 +28,12 @@
       background-color: white;
     }
 
-    #lastLabel {
+    #legendLabel {
+      clear: both;
+      float: left;
+    }
+
+    .lastLabel {
       float: right;
     }
   </style>
@@ -40,17 +45,16 @@
     <p id="loading">Loading...</p>
 
     <p id="intro"></p>
-    <p>
-      <label for="dates" id="dates-label"></label>
-      <input type="text" id="dates" style="border: 0; color: #900D09; font-weight: bold;" size="100" disabled />
-    </p>
+    <h4 id="dates-label"></h4>
     <div id="slider-range"></div>
-    <br /><br />
-    <span id="legendLabel"></span>
+    <span class="firstLabel" id="dateFirst"></span><span class="lastLabel" id="dateLast"></span>
+    <div id="filters"></div>
+    <h4 id="legendLabel"></h4>
     <svg id="legend"></svg>
-    <span id="firstLabel"></span><span id="lastLabel"></span>
+    <span class="firstLabel" id="legendFirst"></span><span class="lastLabel" id="legendLast"></span>
     <svg id="map" width="1200" height="650"></svg>
     <div class="tooltip"></div>
+    <p id="sources"></p>
   </div>
 
   <script>
@@ -94,6 +98,37 @@
         };
       }).filter((m) => m.date);
     }
+    function createStatisticChoice(statistics = ['Cases', 'Deaths']) {
+      const radios = {};
+      const heading = document.createElement("h4");
+      heading.appendChild(document.createTextNode("COVID-19 statistic"));
+      const form = document.createElement("form");
+      form.style.float = "left";
+      form.style.display = "inline-block";
+      heading.style['padding-right'] = "50px";
+      form.appendChild(heading);
+
+      for (const i in statistics) {
+        const radio = document.createElement("input");
+        radio.setAttribute("type", "radio");
+        radio.id = statistics[i].toLowerCase();
+        radio.name = "statistic";
+        radio.value = statistics[i].toLowerCase();
+        radios[statistics[i]] = radio;
+        form.appendChild(radio);
+
+        const label = document.createElement("label");
+        label.setAttribute("for", statistics[i].toLowerCase());
+        label.appendChild(document.createTextNode(statistics[i]));
+        form.appendChild(label);
+
+        form.appendChild(document.createElement("br"));
+      }
+
+      radios['Cases'].checked = true;
+      document.getElementById("filters").appendChild(form);
+      return radios;
+    }
 
     function ready(error, world, names, covid, measures) {
       if (error) throw error;
@@ -116,6 +151,9 @@
         })
       );
 
+      const statistics = ['Cases', 'Deaths'];
+      const statisticRadios = createStatisticChoice(statistics);
+
       // Set up parameters
       let startDate = new Date(firstDate);
       let endDate = new Date(lastDate);
@@ -129,7 +167,7 @@
         .center([0, 15])
         .rotate([-9, 0])
         .scale([1300 / (2 * Math.PI)])
-        .translate([500, 280]);
+        .translate([550, 280]);
       const path = d3.geoPath()
         .projection(projection);
       const g = d3.select("#map")
@@ -137,7 +175,7 @@
         .attr("width", width)
         .attr("height", height);
 
-      var svgLegend = d3.select("#legend").attr("width", 1000).attr("height", 20);
+      var svgLegend = d3.select("#legend").attr("width", 1100).attr("height", 20);
       var defs = svgLegend.append('defs');
       var linearGradient = defs.append('linearGradient')
         .attr('id', 'linear-gradient');
@@ -148,6 +186,8 @@
         .attr("y2", "0%");
 
       function updateMap() {
+        mapVariable = statistics.filter((s) => statisticRadios[s].checked)[0].toLowerCase();
+
         // Retrieve and execute filters
         const data = {};
         covid.forEach((d) => {
@@ -158,9 +198,9 @@
         });
 
         const colorScale = d3.scaleLinear().domain([0, d3.max(Object.keys(data).map((k) => data[k]))]).range(["#FFFFFF", "#900D09"]);
-        document.getElementById("legendLabel").innerText = "Total cases per million";
-        document.getElementById("firstLabel").innerText = "0";
-        document.getElementById("lastLabel").innerText = Math.round(d3.max(Object.keys(data).map((k) => data[k])));
+        document.getElementById("legendLabel").innerText = `Total ${mapVariable.toLowerCase()} per million`;
+        document.getElementById("legendFirst").innerText = "0";
+        document.getElementById("legendLast").innerText = Math.round(d3.max(Object.keys(data).map((k) => data[k])));
 
         linearGradient.selectAll("stop")
           .data([
@@ -229,7 +269,7 @@
             tooltip.classed("hidden", false)
               .style("top", (d3.event.pageY) + "px")
               .style("left", (d3.event.pageX + 10) + "px")
-              .html(d.name + "\n" + (measures.length > 0 ? `${measures.length} measures` : `No measures data`));
+              .html(d.name + ": " + (measures.length > 0 ? `${measures.length} measures` : `No measures data`));
           })
           .on("mouseout", function (d, i) {
             tooltip.classed("hidden", true);
@@ -242,6 +282,7 @@
           .remove();
       }
       updateMap();
+      statistics.forEach((s) => statisticRadios[s].addEventListener('change', updateMap));
 
       // Set up dates slider
       $(function () {
@@ -252,18 +293,22 @@
           step: 86400,
           values: [new Date(firstDate).getTime() / 1000, new Date(lastDate).getTime() / 1000],
           slide: function (event, ui) {
-            $("#dates").val((new Date(ui.values[0] * 1000).toDateString()) + " - " + (new Date(ui.values[1] * 1000)).toDateString());
+            const options = { year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById("dateFirst").innerText = new Date($("#slider-range").slider("values", 0) * 1000).toLocaleDateString("en-US", options);
+            document.getElementById("dateLast").innerText = new Date($("#slider-range").slider("values", 1) * 1000).toLocaleDateString("en-US", options);
             startDate = new Date(ui.values[0] * 1000);
             endDate = new Date(ui.values[1] * 1000);
             updateMap();
           }
         });
-        $("#dates").val((new Date($("#slider-range").slider("values", 0) * 1000).toDateString()) +
-          " - " + (new Date($("#slider-range").slider("values", 1) * 1000)).toDateString());
+        const options = { year: 'numeric', month: 'long', day: 'numeric' };
+        document.getElementById("dateFirst").innerText = new Date($("#slider-range").slider("values", 0) * 1000).toLocaleDateString("en-US", options);
+        document.getElementById("dateLast").innerText = new Date($("#slider-range").slider("values", 1) * 1000).toLocaleDateString("en-US", options);
       });
-      document.getElementById("dates-label").innerText = "Date range:";
+      document.getElementById("dates-label").innerText = "Date range";
       document.getElementById("intro").innerText = "Welcome! You can use the map below to find out more about COVID-19 around the world. Hover over countries to see their name and total number of measures implemented, and click for a more detailed page. You can also filter down the date range using the slider below.";
       document.getElementById("loading").innerText = "";
+      document.getElementById("sources").innerHTML = "Sources: <a href='https://www.acaps.org/covid-19-government-measures-dataset' target='_blank'>ACAPS COVID-19 Government Measures Dataset</a>, <a href='https://github.com/owid/covid-19-data/tree/master/public/data' target='_blank'>OWID COVID-19 Dataset</a>";
     };
 
   </script>
