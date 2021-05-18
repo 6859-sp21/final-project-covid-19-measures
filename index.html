@@ -36,6 +36,35 @@
     .lastLabel {
       float: right;
     }
+
+    #intro {
+      padding-bottom: 10px;
+    }
+
+    #notable-dates {
+      clear: both;
+      display: none;
+    }
+
+    #notable-dates p {
+      margin: 0px;
+    }
+
+    #notable-dates-toggle {
+      padding-top: 5px;
+      clear: both;
+      float: left;
+      text-decoration: none;
+      cursor: pointer;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+
+    #filters {
+      clear: both;
+    }
   </style>
 </head>
 
@@ -48,6 +77,8 @@
     <h4 id="dates-label"></h4>
     <div id="slider-range"></div>
     <span class="firstLabel" id="dateFirst"></span><span class="lastLabel" id="dateLast"></span>
+    <a id="notable-dates-toggle"></a>
+    <div id="notable-dates"></div>
     <div id="filters"></div>
     <h4 id="legendLabel"></h4>
     <svg id="legend"></svg>
@@ -98,6 +129,33 @@
         };
       }).filter((m) => m.date);
     }
+
+    function createNotableDates(content) {
+      const div = document.getElementById("notable-dates");
+
+      const dates = Object.keys(content);
+      for (i in dates) {
+        const p = document.createElement("p");
+        p.innerHTML = `<b>${dates[i]}:</b> ${content[dates[i]]}`
+        div.appendChild(p);
+      }
+
+      const p = document.createElement("p");
+      p.innerHTML = "Source: <a href='https://www.ajmc.com/view/a-timeline-of-covid19-developments-in-2020' target='_blank'>AJMC</a>";
+
+      document.getElementById("notable-dates-toggle").innerText = 'Show notable dates';
+      document.getElementById("notable-dates-toggle").addEventListener('click', () => {
+        if (div.style.display == 'block') {
+          div.style.display = 'none';
+          document.getElementById("notable-dates-toggle").innerText = 'Show notable dates';
+        }
+        else {
+          div.style.display = 'block';
+          document.getElementById("notable-dates-toggle").innerText = 'Hide notable dates';
+        }
+      });
+    }
+
     function createStatisticChoice(statistics = ['Cases', 'Deaths']) {
       const radios = {};
       const heading = document.createElement("h4");
@@ -121,8 +179,7 @@
         label.setAttribute("for", statistics[i].toLowerCase());
         label.appendChild(document.createTextNode(statistics[i]));
         form.appendChild(label);
-
-        form.appendChild(document.createElement("br"));
+        label.style['padding-right'] = "10px";
       }
 
       radios['Cases'].checked = true;
@@ -199,8 +256,8 @@
 
         const colorScale = d3.scaleLinear().domain([0, d3.max(Object.keys(data).map((k) => data[k]))]).range(["#FFFFFF", "#900D09"]);
         document.getElementById("legendLabel").innerText = `Total ${mapVariable.toLowerCase()} per million`;
-        document.getElementById("legendFirst").innerText = "0";
-        document.getElementById("legendLast").innerText = Math.round(d3.max(Object.keys(data).map((k) => data[k])));
+        document.getElementById("legendFirst").innerText = `0 ${mapVariable.toLowerCase()}`;
+        document.getElementById("legendLast").innerText = `${Math.round(d3.max(Object.keys(data).map((k) => data[k]))).toLocaleString('en', { useGrouping: true })} ${mapVariable.toLowerCase()}`;
 
         linearGradient.selectAll("stop")
           .data([
@@ -240,16 +297,21 @@
           })
           .on("mousemove", function (d) {
             const measures = measuresAll.filter((m) => m.iso == d.ISO);
+            const covidSelect = covid.filter((c) => c.iso == d.ISO);
             tooltip.classed("hidden", false)
               .style("top", (d3.event.pageY) + "px")
               .style("left", (d3.event.pageX + 10) + "px")
               .html(d.name + ": " + (measures.length > 0 ? `${measures.length} measures` : `No measures data`));
+            if (measures.length > 0 && covidSelect.length > 0) document.body.style.cursor = "pointer";
+            else document.body.style.cursor = "not-allowed";
+
           })
           .on("mouseout", function (d, i) {
             tooltip.classed("hidden", true);
+            document.body.style.cursor = "default";
           })
           .on("click", function (d, i) {
-            if (measuresAll.filter((m) => m.iso == d.ISO).length > 0) window.location = "country.html?iso=" + d.ISO;
+            if (measuresAll.filter((m) => m.iso == d.ISO).length > 0 && covid.filter((c) => c.iso == d.ISO).length > 0) window.location = "country.html?iso=" + d.ISO;
           });
 
         map
@@ -266,16 +328,20 @@
           })
           .on("mousemove", function (d) {
             const measures = measuresAll.filter((m) => m.iso == d.ISO);
+            const covidSelect = covid.filter((c) => c.iso == d.ISO);
             tooltip.classed("hidden", false)
               .style("top", (d3.event.pageY) + "px")
               .style("left", (d3.event.pageX + 10) + "px")
               .html(d.name + ": " + (measures.length > 0 ? `${measures.length} measures` : `No measures data`));
+            if (measures.length > 0 && covidSelect.length > 0) document.body.style.cursor = "pointer";
+            else document.body.style.cursor = "not-allowed";
           })
           .on("mouseout", function (d, i) {
             tooltip.classed("hidden", true);
+            document.body.style.cursor = "default";
           })
           .on("click", function (d, i) {
-            if (measuresAll.filter((m) => m.iso == d.ISO).length > 0) window.location = "country.html?iso=" + d.ISO;
+            if (measuresAll.filter((m) => m.iso == d.ISO).length > 0 && covid.filter((c) => c.iso == d.ISO).length > 0) window.location = "country.html?iso=" + d.ISO;
           });
 
         map.exit()
@@ -306,7 +372,17 @@
         document.getElementById("dateLast").innerText = new Date($("#slider-range").slider("values", 1) * 1000).toLocaleDateString("en-US", options);
       });
       document.getElementById("dates-label").innerText = "Date range";
-      document.getElementById("intro").innerText = "Welcome! You can use the map below to find out more about COVID-19 around the world. Hover over countries to see their name and total number of measures implemented, and click for a more detailed page. You can also filter down the date range using the slider below.";
+      createNotableDates({
+        'March 11, 2020': 'WHO Declares COVID-19 a Pandemic',
+        'May 28, 2020': 'US COVID-19 Deaths Pass the 100,000 Mark',
+        'July 14, 2020': 'Early Moderna Data Point to Vaccine Candidate’s Efficacy',
+        'August 17, 2020': 'COVID-19 Now the Third-Leading Cause of Death in the US',
+        'September 14, 2020': 'Pfizer, BioNTech Expand Phase 3 Trial',
+        'September 23, 2020': 'A New, More Contagious Strain of COVID-19 Is Discovered',
+        'December 10, 2020': 'FDA Advisory Panel Recommends Pfizer, BioNTech COVID-19 Vaccine',
+        'April 2, 2021': 'US Surpasses 100 Million People Receiving 1 Vaccine Dose'
+      });
+      document.getElementById("intro").innerHTML = "Welcome! To begin, you can use the map below to find out more about COVID-19 around the world. <b>Click</b> on a country to see a more detailed page with information about specific COVID-19 measures implemented there.<br /><br /><b>Hover</b> over countries to see their name and total number of measures implemented. You can also <b>filter the date range</b> using the slider or <b>change the statistic</b> by using the selector below.";
       document.getElementById("loading").innerText = "";
       document.getElementById("sources").innerHTML = "Sources: <a href='https://www.acaps.org/covid-19-government-measures-dataset' target='_blank'>ACAPS COVID-19 Government Measures Dataset</a>, <a href='https://github.com/owid/covid-19-data/tree/master/public/data' target='_blank'>OWID COVID-19 Dataset</a>";
     };
