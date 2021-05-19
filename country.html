@@ -44,6 +44,16 @@
       clear: both;
       padding-top: 10px;
     }
+
+    #clear-button {
+      padding-left: 5px;
+      text-decoration: none;
+      cursor: pointer;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
   </style>
 </head>
 
@@ -176,6 +186,28 @@
       document.getElementById("filters").appendChild(form);
       return radios;
     }
+    function createSearch() {
+      const heading = document.createElement("h4");
+      heading.appendChild(document.createTextNode("Measure search"));
+      const form = document.createElement("form");
+      form.style.float = "left";
+      form.style.display = "inline-block";
+      form.style['padding-left'] = '35px';
+      form.appendChild(heading);
+
+      const input = document.createElement("input");
+      input.style.width = "300px";
+      form.appendChild(input);
+
+      const button = document.createElement("a");
+      button.setAttribute('id', 'clear-button');
+      button.innerHTML = "Clear";
+      button.addEventListener('click', () => input.value = "");
+      form.appendChild(button);
+
+      document.getElementById("filters").appendChild(form);
+      return { input, button };
+    }
 
     // Main execution function
     function ready(error, covid, measures) {
@@ -209,6 +241,8 @@
       statistics = statistics.filter((s) => covid.filter((d) => d[s.toLowerCase()] > 0).length > 10);
       const statisticRadios = createStatisticChoice(statistics);
       const categoryCheckboxes = createCategoryFilter(['Governance and socio-economic measures', 'Public health measures', 'Movement restrictions', 'Social distancing', 'Lockdown'].filter((d) => categories.includes(d)));
+      const measureSearchRet = createSearch();
+      const measureSearch = measureSearchRet.input;
 
       let parameter = 'cases';
 
@@ -258,7 +292,9 @@
 
         // Retrieve and execute filters
         const selectedCategories = categories.filter((c) => categoryCheckboxes[c].checked);
+        const searchQuery = measureSearch.value.toLowerCase();
         measures = measuresAll.filter((m) => selectedCategories.includes(m.category));
+        measures = measures.filter((m) => m.category.concat(' ', m.measure, ' ', m.comments).toLowerCase().includes(searchQuery));
         parameter = statistics.filter((s) => statisticRadios[s].checked)[0].toLowerCase();
 
         // Update axes
@@ -396,12 +432,21 @@
       document.getElementById("data-disclaimer").innerText = `Note: data on COVID-19 government measures is available up to ${d3.timeFormat("%B %-d, %Y")(lastDateMeasures)}.`;
       categories.forEach((c) => categoryCheckboxes[c].addEventListener('change', () => updateChart(false)));
       statistics.forEach((s) => statisticRadios[s].addEventListener('change', updateChart));
+      measureSearch.addEventListener('input', () => updateChart(false));
+      measureSearchRet.button.addEventListener('click', () => updateChart(false));
 
       document.getElementById("chartHeading").innerText = "COVID-19 Measures Over Time";
-      document.getElementById("intro").innerHTML = "This page shows more country-specific information on measures. You can <b>choose</b> the COVID-19 related statistic to plot on the bar chart below, as well as <b>filter</b> the categories of measures overlayed. <b>Click</b> an individual bar to see more detailed information about the measures implemented and/or phased out.";
+      document.getElementById("intro").innerHTML = "This page shows more country-specific information on measures. You can <b>choose</b> the COVID-19 related statistic to plot on the bar chart below, as well as <b>filter</b> the categories of measures overlayed using the checkboxes or search. <b>Click</b> an individual bar to see more detailed information about the measures implemented and/or phased out.";
       document.getElementById("sources").innerHTML = "Sources: <a href='https://www.acaps.org/covid-19-government-measures-dataset' target='_blank'>ACAPS COVID-19 Government Measures Dataset</a>, <a href='https://github.com/owid/covid-19-data/tree/master/public/data' target='_blank'>OWID COVID-19 Dataset</a>";
 
       document.getElementById("loading").style.display = "none";
+
+      $(document).keypress(
+        function (event) {
+          if (event.which == '13') {
+            event.preventDefault();
+          }
+        });
     }
 
   </script>
