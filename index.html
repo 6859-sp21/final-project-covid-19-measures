@@ -65,6 +65,10 @@
     #filters {
       clear: both;
     }
+
+    #container {
+      padding-top: 10px;
+    }
   </style>
 </head>
 
@@ -85,7 +89,8 @@
     <span class="firstLabel" id="legendFirst"></span><span class="lastLabel" id="legendLast"></span>
     <svg id="map" width="1200" height="650"></svg>
     <div class="tooltip"></div>
-    <p id="sources"></p>
+    <p id="sources" style="float: left"></p>
+    <a href="about.html" id="about" style="float: right" target="_blank"></a>
   </div>
 
   <script>
@@ -386,6 +391,7 @@
       document.getElementById("intro").innerHTML = "Welcome! To begin, you can use the map below to find out more about COVID-19 around the world. <b>Click</b> on a country to see a more detailed page with information about specific COVID-19 measures implemented there.<br /><br /><b>Hover</b> over countries to see their name and total number of measures implemented. You can also <b>filter the date range</b> using the slider or <b>change the statistic</b> by using the selector below.";
       document.getElementById("loading").innerText = "";
       document.getElementById("sources").innerHTML = "Sources: <a href='https://www.acaps.org/covid-19-government-measures-dataset' target='_blank'>ACAPS COVID-19 Government Measures Dataset</a>, <a href='https://github.com/owid/covid-19-data/tree/master/public/data' target='_blank'>OWID COVID-19 Dataset</a>";
+      document.getElementById("about").innerHTML = "About";
     };
 
   </script>

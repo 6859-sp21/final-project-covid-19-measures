@@ -72,7 +72,8 @@
     <p><i id="data-disclaimer"></i></p>
 
     <div id="measure-info"></div>
-    <p id="sources"></p>
+    <p id="sources" style="float: left"></p>
+    <a href="about.html" id="about" style="float: right" target="_blank"></a>
   </div>
 
   <script>
@@ -438,7 +439,7 @@
       document.getElementById("chartHeading").innerText = "COVID-19 Measures Over Time";
       document.getElementById("intro").innerHTML = "This page shows more country-specific information on measures. You can <b>choose</b> the COVID-19 related statistic to plot on the bar chart below, as well as <b>filter</b> the categories of measures overlayed using the checkboxes or search. <b>Click</b> an individual bar to see more detailed information about the measures implemented and/or phased out.";
       document.getElementById("sources").innerHTML = "Sources: <a href='https://www.acaps.org/covid-19-government-measures-dataset' target='_blank'>ACAPS COVID-19 Government Measures Dataset</a>, <a href='https://github.com/owid/covid-19-data/tree/master/public/data' target='_blank'>OWID COVID-19 Dataset</a>";
-
+      document.getElementById("about").innerHTML = "About";
       document.getElementById("loading").style.display = "none";
 
       $(document).keypress(
