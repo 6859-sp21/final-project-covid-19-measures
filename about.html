@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>About</title>
+
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://code.jquery.com/ui/1.10.2/themes/smoothness/jquery-ui.css" />
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    h3,
+    h4 {
+      margin: auto;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .center {
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
+      width: 90%;
+    }
+
+    #back-link {
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    #back-link:hover {
+      text-decoration: none;
+    }
+
+    #container {
+      padding-top: 10px;
+    }
+
+    iframe {
+      margin: auto;
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="container">
+    <a href="index.html" id="back-link">← Main Page</a>
+    <h1>About COVID-19 Government Measures Exploration</h1>
+    <h3>Albert Gerovitch</h3>
+    <iframe width="640" height="360" src="https://www.youtube.com/embed/8yFJH90CAks" title="YouTube video player"
+      frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+      allowfullscreen></iframe>
+    <br />
+    <h4><a href="final/FinalPaper.pdf" target="_blank">Project Paper</a></h4>
+    <p><b>Abstract:</b> As the COVID-19 pandemic spread around the world, many governments attempted a variety of
+      mitigation strategies to curb the rise of cases and deaths in their countries. Some were more successful than
+      others, but there exists no easy way of exploring these measures to investigate these important trends. We develop
+      an interactive visualization to enable quick and simple exploration of pandemic-related measures by governments
+      worldwide. This tool combines data on COVID-19 cases, deaths, and hospitalizations with detailed information about
+      COVID-19 measures. Using the visualization, users can first browse the data at a high level on a world map and
+      then narrow down to see more granular information about their country of interest. To avoid overloading the user
+      with a multitude of confusing content and features, we emphasize simplicity as well as functionality. In
+      particular, the tool targets policymakers to inform their decisions on future measures to implement. Indeed, we
+      find that users can quickly and easily use our visualization to answer questions about COVID-19 measures. For
+      example, a user can discover insights about measures the United States implemented around the second wave during
+      summer 2020. The tool can be further improved and refined with more data, such as granular state-level measures.
+    </p>
+    <img src="images/bar_plot.png" alt="Bar Plot" class="center">
+    <br />
+    <p>To visit the deployed site, just <a href="index.html">click here</a> and enjoy!</p>
+    <p>To run the code locally on your machine, first clone <a
+        href="https://github.com/6859-sp21/final-project-covid-19-measures" target="_blank">the repository</a>, and then
+      run <span style="font-family:'Courier New'">python3 -m http.server</span> in your Terminal. You can then access
+      the site at http://0.0.0.0:8000/.</p>
+    <p id="sources"><b>Dataset sources:</b> <a href='https://www.acaps.org/covid-19-government-measures-dataset'
+        target='_blank'>ACAPS COVID-19 Government Measures Dataset</a>, <a
+        href='https://github.com/owid/covid-19-data/tree/master/public/data' target='_blank'>OWID COVID-19 Dataset</a>
+    </p>
